@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate -w apps/api
+      - run: npm run typecheck
+      # Tests d'intégration : PostgreSQL embarqué + émulateur S3, aucun service externe.
+      - run: npm test
+      - run: npm run build
+      - name: Vérifier que le bundle Workers se construit
+        run: npx wrangler deploy --dry-run
+        working-directory: apps/api

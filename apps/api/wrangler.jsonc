@@ -1,0 +1,40 @@
+// Déploiement Cloudflare Workers (offre gratuite). Voir docs/DEPLOIEMENT.md.
+// Les secrets (DATABASE_URL, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, MAINTENANCE_TOKEN)
+// ne figurent PAS ici : ils se définissent avec `npx wrangler secret put NOM`.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "spt",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-08-23",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // L'interface web est servie par le même Worker : une seule origine, pas de CORS,
+  // cookies de session « same-site ». Le Worker passe en premier pour ajouter les
+  // en-têtes de sécurité à toutes les réponses.
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+
+  // Entretien quotidien (imports abandonnés, corbeille expirée, sessions périmées).
+  "triggers": { "crons": ["17 3 * * *"] },
+
+  "observability": { "enabled": true },
+
+  "vars": {
+    // À ADAPTER : adresse publique de l'application (sans barre finale).
+    "APP_ORIGIN": "https://spt.VOTRE-SOUS-DOMAINE.workers.dev",
+    // À ADAPTER : point d'accès S3 de votre bucket Backblaze B2 et sa région.
+    "S3_ENDPOINT": "https://s3.eu-central-003.backblazeb2.com",
+    "S3_REGION": "eu-central-003",
+    "S3_BUCKET": "stf-files",
+    // Hachage serveur léger : le navigateur applique déjà PBKDF2 × 600 000.
+    // Valeur dimensionnée pour la limite de 10 ms CPU de l'offre gratuite.
+    "PASSWORD_ITERATIONS": "10000",
+    "MAX_FILE_SIZE_BYTES": "209715200",
+    "STORAGE_QUOTA_BYTES": "9663676416",
+    "USER_QUOTA_BYTES": "524288000"
+  }
+}

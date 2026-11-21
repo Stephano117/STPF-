@@ -1,0 +1,308 @@
+// SPTF — modèle de données PostgreSQL.
+// Deux clients sont générés à partir du même schéma : Node.js (dev, serveur dédié, VPS)
+// et workerd (Cloudflare Workers). Le code métier n'utilise que les types du premier.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/node"
+  runtime  = "nodejs"
+}
+
+generator workerd {
+  provider = "prisma-client"
+  output   = "../src/generated/workerd"
+  runtime  = "workerd"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  SUSPENDED
+}
+
+enum SpaceType {
+  COMPANY
+  SHARED
+  PERSONAL
+}
+
+enum MemberRole {
+  OWNER
+  MANAGER
+  EDITOR
+  READER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+enum UploadStatus {
+  PENDING
+  COMPLETED
+  ABORTED
+}
+
+model User {
+  id               String     @id @default(cuid())
+  email            String     @unique
+  firstName        String
+  lastName         String
+  passwordHash     String
+  role             UserRole   @default(USER)
+  status           UserStatus @default(PENDING)
+  canCreateSpaces  Boolean    @default(true)
+  /// Quota de l'espace personnel en octets (null = valeur par défaut de la plateforme).
+  quotaBytes       BigInt?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  reviewedAt       DateTime?
+  reviewedById     String?
+  lastLoginAt      DateTime?
+
+  sessions      Session[]
+  ownedSpaces   Space[]
+  memberships   SpaceMember[]
+  invitations   SpaceInvitation[] @relation("invitee")
+  sentInvites   SpaceInvitation[] @relation("inviter")
+  uploadedFiles File[]            @relation("uploader")
+  favorites     Favorite[]
+  recents       RecentAccess[]
+
+  @@index([status])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  /// SHA-256 du jeton : le jeton en clair n'existe que dans le cookie.
+  tokenHash  String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  expiresAt  DateTime
+  ip         String?
+  userAgent  String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Space {
+  id          String    @id @default(cuid())
+  type        SpaceType
+  name        String
+  description String    @default("")
+  ownerId     String?
+  owner       User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  /// Archivage (suppression contrôlée) : le contenu est masqué, rien n'est détruit.
+  archivedAt  DateTime?
+  archivedById String?
+
+  members     SpaceMember[]
+  invitations SpaceInvitation[]
+  folders     Folder[]
+  files       File[]
+
+  @@index([type])
+  @@index([ownerId])
+}
+
+model SpaceMember {
+  spaceId   String
+  userId    String
+  role      MemberRole
+  createdAt DateTime   @default(now())
+  space     Space      @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([spaceId, userId])
+  @@index([userId])
+}
+
+model SpaceInvitation {
+  id          String           @id @default(cuid())
+  spaceId     String
+  inviteeId   String
+  invitedById String
+  role        MemberRole
+  status      InvitationStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  respondedAt DateTime?
+  space       Space            @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  invitee     User             @relation("invitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+  invitedBy   User             @relation("inviter", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([inviteeId, status])
+  @@index([spaceId, status])
+}
+
+model Folder {
+  id           String    @id @default(cuid())
+  spaceId      String
+  space        Space     @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  parentId     String?
+  parent       Folder?   @relation("tree", fields: [parentId], references: [id], onDelete: Cascade)
+  children     Folder[]  @relation("tree")
+  name         String
+  createdById  String
+  /// Espace entreprise : dossier officiel, écriture réservée aux administrateurs.
+  restricted   Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  deletedById  String?
+  /// Identifiant du lot de suppression : restaurer un dossier restaure tout son lot.
+  trashBatchId String?
+  files        File[]
+
+  @@index([spaceId, parentId])
+  @@index([deletedAt])
+  @@index([trashBatchId])
+}
+
+model File {
+  id               String    @id @default(cuid())
+  spaceId          String
+  space            Space     @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  folderId         String?
+  folder           Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  name             String
+  uploaderId       String
+  uploader         User      @relation("uploader", fields: [uploaderId], references: [id])
+  currentVersionId String?   @unique
+  size             BigInt
+  mimeType         String
+  /// Verrou optimiste : incrémenté à chaque modification.
+  rowVersion       Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+  deletedById      String?
+  trashBatchId     String?
+
+  versions  FileVersion[]
+  favorites Favorite[]
+  recents   RecentAccess[]
+
+  @@index([spaceId, folderId])
+  @@index([uploaderId])
+  @@index([deletedAt])
+  @@index([trashBatchId])
+  @@index([updatedAt])
+}
+
+model FileVersion {
+  id           String   @id @default(cuid())
+  fileId       String
+  file         File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  number       Int
+  storageKey   String   @unique
+  size         BigInt
+  mimeType     String
+  /// SHA-256 calculé par le navigateur, revérifié par le script de sauvegarde.
+  sha256       String?
+  etag         String?
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  @@unique([fileId, number])
+}
+
+model Upload {
+  id           String       @id @default(cuid())
+  userId       String
+  spaceId      String
+  folderId     String?
+  /// Renseigné quand l'import crée une nouvelle version d'un fichier existant.
+  fileId       String?
+  name         String
+  size         BigInt
+  declaredMime String
+  storageKey   String       @unique
+  multipartId  String?
+  partSize     Int?
+  status       UploadStatus @default(PENDING)
+  createdAt    DateTime     @default(now())
+  expiresAt    DateTime
+  completedAt  DateTime?
+
+  @@index([status, expiresAt])
+  @@index([userId, status])
+}
+
+model Favorite {
+  userId    String
+  fileId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file      File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@id([userId, fileId])
+}
+
+model RecentAccess {
+  userId     String
+  fileId     String
+  accessedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file       File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@id([userId, fileId])
+  @@index([userId, accessedAt])
+}
+
+/// Journal d'activité : toute opération sensible y est tracée. Jamais modifié.
+model ActivityLog {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  actorId    String?
+  actorLabel String   @default("")
+  action     String
+  targetType String   @default("")
+  targetId   String?
+  targetLabel String  @default("")
+  spaceId    String?
+  /// Vrai si l'espace concerné est personnel : ces lignes ne sont jamais montrées à l'admin.
+  private    Boolean  @default(false)
+  metadata   Json?
+  ip         String?
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+  @@index([action, createdAt])
+}
+
+model ErrorLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  source    String
+  message   String
+  stack     String?
+  path      String?
+  userId    String?
+
+  @@index([createdAt])
+}
+
+model RateLimit {
+  key         String   @id
+  windowStart DateTime
+  count       Int
+}

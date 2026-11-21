@@ -1,0 +1,30 @@
+{
+  "name": "stf",
+  "private": true,
+  "version": "1.0.0",
+  "description": "SPTF — plateforme de centralisation et de partage de fichiers",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "local": "npm run local -w apps/api --",
+    "dev:services": "npm run dev:services -w apps/api",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "build": "npm run build -w apps/web && npm run build -w apps/api",
+    "typecheck": "npm run typecheck -w apps/api && npm run typecheck -w apps/web",
+    "test": "npm run test -w apps/api && npm run test -w apps/web",
+    "db:migrate": "npm run db:migrate -w apps/api",
+    "db:deploy": "npm run db:deploy -w apps/api",
+    "create-admin": "npm run create-admin -w apps/api --",
+    "backup": "npm run backup -w apps/api --",
+    "backup:verify": "npm run backup:verify -w apps/api --",
+    "restore": "npm run restore -w apps/api --",
+    "verify:prod": "npm run verify:prod -w apps/api --",
+    "deploy:cloudflare": "npm run build -w apps/web && npm run deploy -w apps/api"
+  }
+}

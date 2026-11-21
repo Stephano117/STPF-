@@ -1,0 +1,3 @@
+ a ca chaque import ajouter un euquivalent d e commit : une descripion du fichier. car tu peut importer un fichier et il ne le sauras pas. 
+
+ filtrage par nom par date par taille. 

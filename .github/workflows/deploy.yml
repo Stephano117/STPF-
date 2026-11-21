@@ -1,0 +1,46 @@
+name: Déploiement
+
+# Déploie sur Cloudflare Workers après chaque poussée sur main, une fois les tests passés.
+# Secrets GitHub requis (Settings → Secrets and variables → Actions) :
+#   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, DIRECT_URL (URL Neon non poolée),
+#   APP_URL (adresse publique, pour le contrôle final)
+
+# EN ATTENTE D'HEBERGEMENT : déclenchement manuel uniquement (onglet Actions → Run workflow).
+# Pour réactiver le déploiement automatique à chaque poussée sur main, une fois les secrets
+# ci-dessus renseignés, remettre :
+#   push:
+#     branches: [main]
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate -w apps/api
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build -w apps/web
+      # Les migrations sont appliquées AVANT le nouveau code (elles restent rétrocompatibles).
+      - name: Migrations PostgreSQL
+        run: npm run db:deploy
+        env:
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      - name: Déploiement Workers
+        run: npm run deploy -w apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Contrôle de l'instance déployée
+        run: npm run verify:prod -- "${{ secrets.APP_URL }}"

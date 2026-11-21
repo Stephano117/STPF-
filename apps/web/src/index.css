@@ -1,0 +1,67 @@
+@import 'tailwindcss';
+
+/* Identité SPTF */
+@theme {
+  --color-petrol: #07566b;
+  --color-petrol-dark: #064a5c;
+  --color-petrol-soft: #e6f0f2;
+  --color-deep: #123d4a;
+  --color-surface: #f5f7f8;
+  --color-ink: #25343a;
+  --color-muted: #64757c;
+  --color-line: #e1e7e9;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdecea;
+  --color-warn: #b45309;
+  --color-warn-soft: #fef3e2;
+  --color-ok: #1a7f4b;
+  --color-ok-soft: #e7f5ed;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-petrol);
+    outline-offset: 2px;
+  }
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='menuitem'] {
+    cursor: pointer;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+}
+.anim-pop {
+  animation: fade-in 140ms ease-out;
+}
+.anim-overlay {
+  animation: overlay-in 140ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .anim-pop,
+  .anim-overlay {
+    animation: none;
+  }
+}
