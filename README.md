@@ -1,9 +1,5 @@
 # SPTF — Plateforme de centralisation et de partage de fichiers
 
-Application web d'entreprise : un espace commun, des espaces partagés sur invitation et un espace
-personnel privé pour chaque collaborateur. Conçue pour tourner **12 mois sur des offres gratuites**,
-puis migrer vers un serveur propriétaire local sans réécriture.
-
 ![Écran de connexion](docs/images/connexion.png)
 
 > **État du projet** — développement terminé et testé (108 tests automatisés). L'application
