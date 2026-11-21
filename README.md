@@ -2,7 +2,7 @@
 
 Application web d'entreprise : un espace commun, des espaces partagés sur invitation et un espace
 personnel privé pour chaque collaborateur. Conçue pour tourner **12 mois sur des offres gratuites**,
-puis migrer vers un serveur propriétaire sans réécriture.
+puis migrer vers un serveur propriétaire local sans réécriture.
 
 ![Écran de connexion](docs/images/connexion.png)
 
